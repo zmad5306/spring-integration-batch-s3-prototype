@@ -36,14 +36,12 @@ public class ExtractionIntegrationConfig {
     private final EntityManager entityManager;
     private final Job extractJob;
     private final JobLauncher jobLauncher;
-    private final AmazonS3 amazonS3;
     private final TransferManager amazonS3TransferManager;
 
-    public ExtractionIntegrationConfig(EntityManager entityManager, @Qualifier("extractJob") Job extractJob, JobLauncher jobLauncher, AmazonS3 amazonS3, TransferManager amazonS3TransferManager) {
+    public ExtractionIntegrationConfig(EntityManager entityManager, @Qualifier("extractJob") Job extractJob, JobLauncher jobLauncher, TransferManager amazonS3TransferManager) {
         this.entityManager = entityManager;
         this.extractJob = extractJob;
         this.jobLauncher = jobLauncher;
-        this.amazonS3 = amazonS3;
         this.amazonS3TransferManager = amazonS3TransferManager;
     }
 
