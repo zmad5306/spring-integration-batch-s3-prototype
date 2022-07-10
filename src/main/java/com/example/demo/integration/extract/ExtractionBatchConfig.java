@@ -70,10 +70,10 @@ public class ExtractionBatchConfig {
 
     @Bean
     @StepScope
-    public FlatFileItemWriter<Pet> petWriter(@Value("#{jobParameters['owner_id']}") Long ownerId, @Qualifier("petLineAggregator") LineAggregator<Pet> lineAggregator) {
+    public FlatFileItemWriter<Pet> petWriter(@Value("#{jobParameters['owner_id']}") Long ownerId, @Value("#{jobParameters['file']}") String file, @Qualifier("petLineAggregator") LineAggregator<Pet> lineAggregator) {
         log.debug("Creating writer for owner id [{}]", ownerId);
         FlatFileItemWriter<Pet> petWriter = new FlatFileItemWriter<>();
-        petWriter.setResource(new FileSystemResource(String.format("output/%s-%s.csv", ownerId, System.currentTimeMillis())));
+        petWriter.setResource(new FileSystemResource(file));
         petWriter.setLineAggregator(lineAggregator);
         petWriter.setHeaderCallback(writer -> writer.write("id,owner_id,name"));
         return petWriter;
