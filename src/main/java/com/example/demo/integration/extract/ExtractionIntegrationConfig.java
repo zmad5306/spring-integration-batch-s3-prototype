@@ -1,6 +1,6 @@
 package com.example.demo.integration.extract;
 
-import com.amazonaws.services.s3.AmazonS3;
+import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.amazonaws.services.s3.transfer.TransferManager;
 import com.amazonaws.services.s3.transfer.Upload;
 import com.example.demo.domain.Owner;
@@ -69,11 +69,13 @@ public class ExtractionIntegrationConfig {
 
     @Splitter(inputChannel = "ownersChannel", outputChannel = "ownerChannel")
     public List<Owner> ownersSplitter(List<Owner> owners) {
+        log.info("Splitting [{}] owners", owners.size());
         return owners;
     }
 
     @Transformer(inputChannel = "ownerChannel", outputChannel = "launchJobChannel")
     public JobParameters ownersToJobParametersTransformer(Owner owner) {
+        log.info("Building job parameters for owner [{}]", owner.getId());
         return new JobParametersBuilder()
                 .addLong(OWNER_ID, owner.getId())
                 .addString(FILE, String.format("output/%s-%s.csv", owner.getId(), System.currentTimeMillis()))
@@ -92,18 +94,22 @@ public class ExtractionIntegrationConfig {
 
     @ServiceActivator(inputChannel = "transferToS3", outputChannel = "deleteLocalFile")
     public File transferToS3(File file) throws InterruptedException {
-        Upload upload = amazonS3TransferManager.upload("input", file.getName(), file);
+        log.info("Uploading [{}] to [input] S3 bucket", file.getName());
+        PutObjectRequest request = new PutObjectRequest("input", file.getName(), file);
+        Upload upload = amazonS3TransferManager.upload(request);
         upload.waitForCompletion();
         return file;
     }
 
     @ServiceActivator(inputChannel = "deleteLocalFile", outputChannel = "end")
     public Boolean deleteLocalFile(File file) {
+        log.info("Deleting file [{}]", file.getName());
         return file.delete();
     }
 
     @Aggregator(inputChannel = "end")
     public void shutdown() {
+        log.info("Integration flow complete, shutting down JVM");
         System.exit(0); // kills the JVM when all integration steps are finished, this allows single run scheduling
     }
 }
