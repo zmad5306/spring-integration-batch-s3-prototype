@@ -47,7 +47,7 @@ public class IngestionIntegrationConfig {
         return new QueueChannel();
     }
 
-    @Bean(name = "outputInboundFileSynchronizer")
+    @Bean
     public S3InboundFileSynchronizer inboundFileSynchronizer() {
         S3InboundFileSynchronizer synchronizer = new S3InboundFileSynchronizer(amazonS3);
         synchronizer.setDeleteRemoteFiles(true);
@@ -58,7 +58,7 @@ public class IngestionIntegrationConfig {
 
     @Bean
     @InboundChannelAdapter(value="s3InputChannel", poller = @Poller)
-    public MessageSource<List<File>> s3MessageSource(@Qualifier("outputInboundFileSynchronizer") S3InboundFileSynchronizer synchronizer) {
+    public MessageSource<List<File>> s3MessageSource(S3InboundFileSynchronizer synchronizer) {
         return () -> {
             log.info("Syncing S3 objects in [{}] bucket", "output");
             File output = new File("output");
