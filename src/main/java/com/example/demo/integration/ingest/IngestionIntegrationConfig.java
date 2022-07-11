@@ -1,7 +1,6 @@
 package com.example.demo.integration.ingest;
 
 import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.model.*;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.batch.core.*;
 import org.springframework.batch.core.launch.JobLauncher;
@@ -20,10 +19,10 @@ import org.springframework.messaging.PollableChannel;
 import org.springframework.messaging.support.GenericMessage;
 
 import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
 import java.util.Date;
 import java.util.List;
+
+import static java.util.Arrays.asList;
 
 @Configuration
 @Slf4j
@@ -59,37 +58,19 @@ public class IngestionIntegrationConfig {
 
     @Bean
     @InboundChannelAdapter(value="s3InputChannel", poller = @Poller)
-    public MessageSource<List<String>> s3MessageSource(@Qualifier("outputInboundFileSynchronizer") S3InboundFileSynchronizer synchronizer) {
+    public MessageSource<List<File>> s3MessageSource(@Qualifier("outputInboundFileSynchronizer") S3InboundFileSynchronizer synchronizer) {
         return () -> {
-            ObjectListing listing = amazonS3.listObjects("output");
-            return new GenericMessage<>(listing.getObjectSummaries().stream().map(S3ObjectSummary::getKey).toList());
+            log.info("Syncing S3 objects in [{}] bucket", "output");
+            File output = new File("output");
+            synchronizer.synchronizeToLocalDirectory(output);
+            return new GenericMessage<>(asList(output.listFiles()));
         };
     }
 
-    @Splitter(inputChannel = "s3InputChannel", outputChannel = "downloadChannel")
-    public List<String> ownersSplitter(List<String> fileKeys) {
-        log.info("Splitting [{}] file keys", fileKeys.size());
-        return fileKeys;
-    }
-
-    @ServiceActivator(inputChannel = "downloadChannel", outputChannel = "deleteRemoteFileChannel")
-    public File downloadFile(String fileKey) {
-        File localFile = new File("output", fileKey);
-        GetObjectRequest request = new GetObjectRequest("output", fileKey);
-        S3Object object = amazonS3.getObject(request);
-        S3ObjectInputStream inputStream = object.getObjectContent();
-        try (FileOutputStream localOut = new FileOutputStream(localFile)) {
-            inputStream.transferTo(localOut);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-        return localFile;
-    }
-
-    @ServiceActivator(inputChannel = "deleteRemoteFileChannel", outputChannel = "fileChannel")
-    public File deleteRemoteFile(File file) {
-        amazonS3.deleteObject("output", file.getName());
-        return file;
+    @Splitter(inputChannel = "s3InputChannel", outputChannel = "fileChannel")
+    public List<File> fileSplitter(List<File> files) {
+        log.info("Splitting [{}] files", files.size());
+        return files;
     }
 
     @Transformer(inputChannel = "fileChannel", outputChannel = "launchJobChannel")
