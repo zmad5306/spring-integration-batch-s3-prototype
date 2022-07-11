@@ -7,9 +7,6 @@ import com.example.demo.domain.Owner;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.batch.core.*;
 import org.springframework.batch.core.launch.JobLauncher;
-import org.springframework.batch.core.repository.JobExecutionAlreadyRunningException;
-import org.springframework.batch.core.repository.JobInstanceAlreadyCompleteException;
-import org.springframework.batch.core.repository.JobRestartException;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -86,7 +83,7 @@ public class ExtractionIntegrationConfig {
     }
 
     @ServiceActivator(inputChannel = "launchJobChannel", outputChannel = "transferToS3Channel")
-    public File launchExtractJob(JobParameters jobParameters) throws JobInstanceAlreadyCompleteException, JobExecutionAlreadyRunningException, JobParametersInvalidException, JobRestartException {
+    public File launchExtractJob(JobParameters jobParameters) throws JobExecutionException {
         log.info("Launching extractJob with parameters [{}]", jobParameters);
         JobExecution jobExecution = jobLauncher.run(extractJob, jobParameters);
         log.info("Job execution [{}] ended at [{}] with status [{}] for parameters [{}]",

@@ -4,9 +4,6 @@ import com.amazonaws.services.s3.AmazonS3;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.batch.core.*;
 import org.springframework.batch.core.launch.JobLauncher;
-import org.springframework.batch.core.repository.JobExecutionAlreadyRunningException;
-import org.springframework.batch.core.repository.JobInstanceAlreadyCompleteException;
-import org.springframework.batch.core.repository.JobRestartException;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -83,7 +80,7 @@ public class IngestionIntegrationConfig {
     }
 
     @ServiceActivator(inputChannel = "launchJobChannel", outputChannel = "deleteLocalFileChannel")
-    public File launchExtractJob(JobParameters jobParameters) throws JobInstanceAlreadyCompleteException, JobExecutionAlreadyRunningException, JobParametersInvalidException, JobRestartException {
+    public File launchExtractJob(JobParameters jobParameters) throws JobExecutionException {
         log.info("Launching ingestJob with parameters [{}]", jobParameters);
         JobExecution jobExecution = jobLauncher.run(job, jobParameters);
         log.info("Job execution [{}] ended at [{}] with status [{}] for parameters [{}]",
