@@ -9,9 +9,17 @@ docker-compose up -d
 
 Create buckets:
 
-```
+```sh
 aws --endpoint-url=http://localhost:4566 --region=us-east-1 s3api create-bucket --bucket input
 aws --endpoint-url=http://localhost:4566 --region=us-east-1 s3api create-bucket --bucket output
+```
+
+Upload sample output data:
+
+```sh
+aws s3 --endpoint-url=http://localhost:4566 cp sample-data/output/1-1657541239896.csv s3://output
+aws s3 --endpoint-url=http://localhost:4566 cp sample-data/output/2-1657541240134.csv s3://output
+aws s3 --endpoint-url=http://localhost:4566 cp sample-data/output/3-1657541240213.csv s3://output
 ```
 
 ## Database

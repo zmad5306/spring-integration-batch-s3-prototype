@@ -88,7 +88,7 @@ public class ExtractionBatchConfig {
                 .build();
     }
 
-    @Bean
+    @Bean(name = "extractJob")
     public Job extractJob(@Qualifier("extractStep") Step extractStep) {
         return jobBuilderFactory.get("extractJob")
                 .incrementer(new RunIdIncrementer())

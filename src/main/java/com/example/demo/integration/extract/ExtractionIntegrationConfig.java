@@ -13,6 +13,7 @@ import org.springframework.batch.core.repository.JobRestartException;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Profile;
 import org.springframework.integration.annotation.*;
 import org.springframework.integration.channel.DirectChannel;
 import org.springframework.integration.core.MessageSource;
@@ -27,6 +28,7 @@ import java.util.List;
 
 @Configuration
 @Slf4j
+@Profile("extraction")
 public class ExtractionIntegrationConfig {
 
     private static final String OWNER_ID = "owner_id",
@@ -78,12 +80,12 @@ public class ExtractionIntegrationConfig {
         log.info("Building job parameters for owner [{}]", owner.getId());
         return new JobParametersBuilder()
                 .addLong(OWNER_ID, owner.getId())
-                .addString(FILE, String.format("output/%s-%s.csv", owner.getId(), System.currentTimeMillis()))
+                .addString(FILE, String.format("input/%s-%s.csv", owner.getId(), System.currentTimeMillis()))
                 .addDate(EXECUTION_TIME, new Date())
                 .toJobParameters();
     }
 
-    @ServiceActivator(inputChannel = "launchJobChannel", outputChannel = "transferToS3")
+    @ServiceActivator(inputChannel = "launchJobChannel", outputChannel = "transferToS3Channel")
     public File launchExtractJob(JobParameters jobParameters) throws JobInstanceAlreadyCompleteException, JobExecutionAlreadyRunningException, JobParametersInvalidException, JobRestartException {
         log.info("Launching extractJob with parameters [{}]", jobParameters);
         JobExecution jobExecution = jobLauncher.run(extractJob, jobParameters);
@@ -92,7 +94,7 @@ public class ExtractionIntegrationConfig {
         return new File(jobParameters.getString(FILE));
     }
 
-    @ServiceActivator(inputChannel = "transferToS3", outputChannel = "deleteLocalFile")
+    @ServiceActivator(inputChannel = "transferToS3Channel", outputChannel = "deleteLocalFileChannel")
     public File transferToS3(File file) throws InterruptedException {
         log.info("Uploading [{}] to [input] S3 bucket", file.getName());
         PutObjectRequest request = new PutObjectRequest("input", file.getName(), file);
@@ -101,13 +103,13 @@ public class ExtractionIntegrationConfig {
         return file;
     }
 
-    @ServiceActivator(inputChannel = "deleteLocalFile", outputChannel = "end")
+    @ServiceActivator(inputChannel = "deleteLocalFileChannel", outputChannel = "endChannel")
     public Boolean deleteLocalFile(File file) {
         log.info("Deleting file [{}]", file.getName());
         return file.delete();
     }
 
-    @Aggregator(inputChannel = "end")
+    @Aggregator(inputChannel = "endChannel")
     public void shutdown() {
         log.info("Integration flow complete, shutting down JVM");
         System.exit(0); // kills the JVM when all integration steps are finished, this allows single run scheduling
