@@ -22,6 +22,13 @@ aws s3 --endpoint-url=http://localhost:4566 cp sample-data/output/2-165754124013
 aws s3 --endpoint-url=http://localhost:4566 cp sample-data/output/3-1657541240213.csv s3://output
 ```
 
+List objects:
+
+```sh
+aws --endpoint-url=http://localhost:4566 --region=us-east-1 --bucket=input s3api list-objects
+aws --endpoint-url=http://localhost:4566 --region=us-east-1 --bucket=output s3api list-objects
+```
+
 ## Database
 
 `docker run -d --name pr_spike_pg -p 5450:5432 -e POSTGRES_PASSWORD=abc123 postgres:13.4`

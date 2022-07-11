@@ -1,6 +1,7 @@
 package com.example.demo.integration.ingest;
 
 import com.amazonaws.services.s3.AmazonS3;
+import com.amazonaws.services.s3.model.*;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.batch.core.*;
 import org.springframework.batch.core.launch.JobLauncher;
@@ -13,13 +14,16 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
 import org.springframework.integration.annotation.*;
 import org.springframework.integration.aws.inbound.S3InboundFileSynchronizer;
-import org.springframework.integration.aws.inbound.S3InboundFileSynchronizingMessageSource;
 import org.springframework.integration.channel.QueueChannel;
-import org.springframework.integration.file.filters.AcceptOnceFileListFilter;
+import org.springframework.integration.core.MessageSource;
 import org.springframework.messaging.PollableChannel;
+import org.springframework.messaging.support.GenericMessage;
 
 import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.util.Date;
+import java.util.List;
 
 @Configuration
 @Slf4j
@@ -55,15 +59,40 @@ public class IngestionIntegrationConfig {
 
     @Bean
     @InboundChannelAdapter(value="s3InputChannel", poller = @Poller)
-    public S3InboundFileSynchronizingMessageSource s3MessageSource(@Qualifier("outputInboundFileSynchronizer") S3InboundFileSynchronizer synchronizer) {
-        S3InboundFileSynchronizingMessageSource messageSource = new S3InboundFileSynchronizingMessageSource(synchronizer);
-        messageSource.setAutoCreateLocalDirectory(true);
-        messageSource.setLocalDirectory(new File("output"));
-        messageSource.setLocalFilter(new AcceptOnceFileListFilter<>());
-        return messageSource;
+    public MessageSource<List<String>> s3MessageSource(@Qualifier("outputInboundFileSynchronizer") S3InboundFileSynchronizer synchronizer) {
+        return () -> {
+            ObjectListing listing = amazonS3.listObjects("output");
+            return new GenericMessage<>(listing.getObjectSummaries().stream().map(S3ObjectSummary::getKey).toList());
+        };
     }
 
-    @Transformer(inputChannel = "s3InputChannel", outputChannel = "launchJobChannel")
+    @Splitter(inputChannel = "s3InputChannel", outputChannel = "downloadChannel")
+    public List<String> ownersSplitter(List<String> fileKeys) {
+        log.info("Splitting [{}] file keys", fileKeys.size());
+        return fileKeys;
+    }
+
+    @ServiceActivator(inputChannel = "downloadChannel", outputChannel = "deleteRemoteFileChannel")
+    public File downloadFile(String fileKey) {
+        File localFile = new File("output", fileKey);
+        GetObjectRequest request = new GetObjectRequest("output", fileKey);
+        S3Object object = amazonS3.getObject(request);
+        S3ObjectInputStream inputStream = object.getObjectContent();
+        try (FileOutputStream localOut = new FileOutputStream(localFile)) {
+            inputStream.transferTo(localOut);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        return localFile;
+    }
+
+    @ServiceActivator(inputChannel = "deleteRemoteFileChannel", outputChannel = "fileChannel")
+    public File deleteRemoteFile(File file) {
+        amazonS3.deleteObject("output", file.getName());
+        return file;
+    }
+
+    @Transformer(inputChannel = "fileChannel", outputChannel = "launchJobChannel")
     public JobParameters fileToJobParametersTransformer(File file) {
         log.info("Building job parameters for file [{}]", file);
         return new JobParametersBuilder()
