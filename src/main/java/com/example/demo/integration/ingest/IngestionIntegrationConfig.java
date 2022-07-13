@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.batch.core.*;
 import org.springframework.batch.core.launch.JobLauncher;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
@@ -32,11 +33,13 @@ public class IngestionIntegrationConfig {
     private final AmazonS3 amazonS3;
     private final JobLauncher jobLauncher;
     private final Job job;
+    private final String outputBucketName;
 
-    public IngestionIntegrationConfig(AmazonS3 amazonS3, JobLauncher jobLauncher, @Qualifier("ingestJob") Job job) {
+    public IngestionIntegrationConfig(AmazonS3 amazonS3, JobLauncher jobLauncher, @Qualifier("ingestJob") Job job, @Value("${aws.s3.outputBucketName}")String outputBucketName) {
         this.amazonS3 = amazonS3;
         this.jobLauncher = jobLauncher;
         this.job = job;
+        this.outputBucketName = outputBucketName;
     }
 
     @Bean(name = "s3InputChannel")
@@ -49,7 +52,7 @@ public class IngestionIntegrationConfig {
         S3InboundFileSynchronizer synchronizer = new S3InboundFileSynchronizer(amazonS3);
         synchronizer.setDeleteRemoteFiles(true);
         synchronizer.setPreserveTimestamp(true);
-        synchronizer.setRemoteDirectory("output");
+        synchronizer.setRemoteDirectory(outputBucketName);
         return synchronizer;
     }
 
@@ -57,7 +60,7 @@ public class IngestionIntegrationConfig {
     @InboundChannelAdapter(value="s3InputChannel", poller = @Poller)
     public MessageSource<List<File>> s3MessageSource(S3InboundFileSynchronizer synchronizer) {
         return () -> {
-            log.info("Syncing S3 objects in [{}] bucket", "output");
+            log.info("Syncing S3 objects in [{}] bucket", outputBucketName);
             File output = new File("output");
             synchronizer.synchronizeToLocalDirectory(output);
             return new GenericMessage<>(asList(output.listFiles()));
@@ -97,6 +100,12 @@ public class IngestionIntegrationConfig {
     @Aggregator(inputChannel = "endChannel")
     public void shutdown() {
         log.info("Integration flow complete, shutting down JVM");
+        System.exit(0); // kills the JVM when all integration steps are finished, this allows single run scheduling
+    }
+
+    @ServiceActivator(inputChannel = "application.errorChannel")
+    public void handleError(Exception ex) {
+        log.error("Error occurred in integration flow, shutting down JVM", ex);
         System.exit(0); // kills the JVM when all integration steps are finished, this allows single run scheduling
     }
 

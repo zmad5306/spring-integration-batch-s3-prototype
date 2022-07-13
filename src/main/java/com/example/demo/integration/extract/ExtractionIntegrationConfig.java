@@ -8,6 +8,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.batch.core.*;
 import org.springframework.batch.core.launch.JobLauncher;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
@@ -36,12 +37,14 @@ public class ExtractionIntegrationConfig {
     private final Job extractJob;
     private final JobLauncher jobLauncher;
     private final TransferManager amazonS3TransferManager;
+    private final String inputBucketName;
 
-    public ExtractionIntegrationConfig(EntityManager entityManager, @Qualifier("extractJob") Job extractJob, JobLauncher jobLauncher, TransferManager amazonS3TransferManager) {
+    public ExtractionIntegrationConfig(EntityManager entityManager, @Qualifier("extractJob") Job extractJob, JobLauncher jobLauncher, TransferManager amazonS3TransferManager, @Value("${aws.s3.inputBucketName}") String inputBucketName) {
         this.entityManager = entityManager;
         this.extractJob = extractJob;
         this.jobLauncher = jobLauncher;
         this.amazonS3TransferManager = amazonS3TransferManager;
+        this.inputBucketName = inputBucketName;
     }
 
     public EntityManager getEntityManager() {
@@ -93,8 +96,8 @@ public class ExtractionIntegrationConfig {
 
     @ServiceActivator(inputChannel = "transferToS3Channel", outputChannel = "deleteLocalFileChannel")
     public File transferToS3(File file) throws InterruptedException {
-        log.info("Uploading [{}] to [input] S3 bucket", file.getName());
-        PutObjectRequest request = new PutObjectRequest("input", file.getName(), file);
+        log.info("Uploading [{}] to [{}] S3 bucket", file.getName(), inputBucketName);
+        PutObjectRequest request = new PutObjectRequest(inputBucketName, file.getName(), file);
         Upload upload = amazonS3TransferManager.upload(request);
         upload.waitForCompletion();
         return file;
@@ -109,6 +112,12 @@ public class ExtractionIntegrationConfig {
     @Aggregator(inputChannel = "endChannel")
     public void shutdown() {
         log.info("Integration flow complete, shutting down JVM");
+        System.exit(0); // kills the JVM when all integration steps are finished, this allows single run scheduling
+    }
+
+    @ServiceActivator(inputChannel = "application.errorChannel")
+    public void handleError(Exception ex) {
+        log.error("Error occurred in integration flow, shutting down JVM", ex);
         System.exit(0); // kills the JVM when all integration steps are finished, this allows single run scheduling
     }
 }

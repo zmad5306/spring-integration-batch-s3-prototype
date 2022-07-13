@@ -29,6 +29,30 @@ aws --endpoint-url=http://localhost:4566 --region=us-east-1 --bucket=input s3api
 aws --endpoint-url=http://localhost:4566 --region=us-east-1 --bucket=output s3api list-objects
 ```
 
+AWS Permission Statement for S3 Access
+
+```text
+{
+
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "AllowBucketOnly",
+            "Action": [
+                "s3:*"
+            ],
+            "Effect": "Allow",
+            "Resource": [
+                "arn:aws:s3:::<input bucket>",
+                "arn:aws:s3:::<input bucket>/*"
+				"arn:aws:s3:::<output bucket>",
+                "arn:aws:s3:::<output bucket>/*"
+            ]
+        }
+    ]
+}
+```
+
 ## Database
 
 `docker run -d --name pr_spike_pg -p 5450:5432 -e POSTGRES_PASSWORD=abc123 postgres:13.4`

@@ -1,6 +1,18 @@
 <component name="ProjectRunConfigurationManager">
   <configuration default="false" name="Extraction Integration" type="SpringBootApplicationConfigurationType" factoryName="Spring Boot">
     <option name="ACTIVE_PROFILES" value="extraction" />
+    <additionalParameters>
+      <param>
+        <option name="enabled" value="true" />
+        <option name="name" value="aws.s3.accessKey" />
+        <option name="value" value="" />
+      </param>
+      <param>
+        <option name="enabled" value="true" />
+        <option name="name" value="aws.s3.secretKey" />
+        <option name="value" value="" />
+      </param>
+    </additionalParameters>
     <module name="demo" />
     <option name="SPRING_BOOT_MAIN_CLASS" value="com.example.demo.DemoApplication" />
     <method v="2">
