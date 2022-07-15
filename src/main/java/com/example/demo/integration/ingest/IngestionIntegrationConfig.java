@@ -1,6 +1,7 @@
 package com.example.demo.integration.ingest;
 
 import com.amazonaws.services.s3.AmazonS3;
+import com.example.demo.integration.FireOnceTrigger;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.batch.core.*;
 import org.springframework.batch.core.launch.JobLauncher;
@@ -42,6 +43,24 @@ public class IngestionIntegrationConfig {
         this.outputBucketName = outputBucketName;
     }
 
+    public void exit(String message) {
+        exit(message, null);
+    }
+
+    public void exit(String message, Exception ex) {
+        if (null != ex) {
+            log.error(message, ex);
+        } else {
+            log.info(message);
+        }
+        System.exit(0); // kills the JVM when all integration steps are finished, this allows single run scheduling
+    }
+
+    @Bean
+    public FireOnceTrigger fireOnceTrigger() {
+        return new FireOnceTrigger();
+    }
+
     @Bean(name = "s3InputChannel")
     public PollableChannel s3InputChannel() {
         return new QueueChannel();
@@ -57,7 +76,7 @@ public class IngestionIntegrationConfig {
     }
 
     @Bean
-    @InboundChannelAdapter(value="s3InputChannel", poller = @Poller)
+    @InboundChannelAdapter(value="s3InputChannel", poller = @Poller(trigger = "fireOnceTrigger"))
     public MessageSource<List<File>> s3MessageSource(S3InboundFileSynchronizer synchronizer) {
         return () -> {
             log.info("Syncing S3 objects in [{}] bucket", outputBucketName);
@@ -67,7 +86,12 @@ public class IngestionIntegrationConfig {
         };
     }
 
-    @Splitter(inputChannel = "s3InputChannel", outputChannel = "fileChannel")
+    @Filter(inputChannel = "s3InputChannel", outputChannel = "fileSplitterChannel", discardChannel = "noFilesChannel")
+    public boolean emptyFilesFilter(List<File> files) {
+        return !files.isEmpty();
+    }
+
+    @Splitter(inputChannel = "fileSplitterChannel", outputChannel = "fileChannel")
     public List<File> fileSplitter(List<File> files) {
         log.info("Splitting [{}] files", files.size());
         return files;
@@ -97,16 +121,19 @@ public class IngestionIntegrationConfig {
         return file.delete();
     }
 
+    @ServiceActivator(inputChannel = "noFilesChannel")
+    public void noFiles() {
+        exit("No files found to process, shutting down JVM");
+    }
+
     @Aggregator(inputChannel = "endChannel")
     public void shutdown() {
-        log.info("Integration flow complete, shutting down JVM");
-        System.exit(0); // kills the JVM when all integration steps are finished, this allows single run scheduling
+        exit("Integration flow complete, shutting down JVM");
     }
 
     @ServiceActivator(inputChannel = "application.errorChannel")
     public void handleError(Exception ex) {
-        log.error("Error occurred in integration flow, shutting down JVM", ex);
-        System.exit(0); // kills the JVM when all integration steps are finished, this allows single run scheduling
+        exit("Error occurred in integration flow, shutting down JVM", ex);
     }
 
 }

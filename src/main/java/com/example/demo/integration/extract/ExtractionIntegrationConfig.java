@@ -4,6 +4,7 @@ import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.amazonaws.services.s3.transfer.TransferManager;
 import com.amazonaws.services.s3.transfer.Upload;
 import com.example.demo.domain.Owner;
+import com.example.demo.integration.FireOnceTrigger;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.batch.core.*;
 import org.springframework.batch.core.launch.JobLauncher;
@@ -64,7 +65,12 @@ public class ExtractionIntegrationConfig {
     }
 
     @Bean
-    @InboundChannelAdapter(value = "ownersChannel", poller = @Poller())
+    public FireOnceTrigger fireOnceTrigger() {
+        return new FireOnceTrigger();
+    }
+
+    @Bean
+    @InboundChannelAdapter(value = "ownersChannel", poller = @Poller(trigger = "fireOnceTrigger"))
     public MessageSource<?> ownerMessageSource(JpaExecutor jpaExecutor) {
         return new JpaPollingChannelAdapter(jpaExecutor);
     }
